@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Caballero Lector - Juego de Lectoescritura</title>
+    <!-- Tailwind CSS para la UI general -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts estilo Pixel y Lectura Clara -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .font-pixel {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* Estilo Retro Pixel Grid / Canvas Container */
+        #game-container {
+            position: relative;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
+        }
+
+        .btn-retro {
+            transition: all 0.1s ease;
+            box-shadow: 0 6px 0 #1e293b;
+        }
+
+        .btn-retro:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #1e293b;
+        }
+
+        .btn-primary-retro {
+            background-color: #3b82f6;
+            box-shadow: 0 6px 0 #1d4ed8;
+        }
+        .btn-primary-retro:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #1d4ed8;
+        }
+
+        .btn-success-retro {
+            background-color: #22c55e;
+            box-shadow: 0 6px 0 #15803d;
+        }
+        .btn-success-retro:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #15803d;
+        }
+
+        /* Animaciones para la UI de lectura */
+        @keyframes bounce-subtle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .animate-bounce-subtle {
+            animation: bounce-subtle 2s infinite ease-in-out;
+        }
+
+        /* Modal Overlay */
+        .modal-bg {
+            background-color: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+        }
+
+        /* Teclado en pantalla */
+        .key-btn {
+            background-color: #334155;
+            color: #ffffff;
+            border-bottom: 4px solid #1e293b;
+            font-weight: bold;
+            font-size: 1.25rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        .key-btn:active {
+            transform: translateY(2px);
+            border-bottom-width: 2px;
+            background-color: #475569;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center p-2 sm:p-4 bg-slate-950">
+
+    <!-- Encabezado HUD superior -->
+    <header class="w-full max-w-4xl bg-slate-900 border-2 border-amber-500/50 rounded-xl p-3 flex flex-wrap justify-between items-center shadow-lg gap-2">
+        <!-- Info del Caballero -->
+        <div class="flex items-center gap-3">
+            <div id="hero-avatar" class="w-12 h-12 rounded-lg bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-amber-400 text-2xl">
+                <i class="fa-solid fa-user-ninja"></i>
+            </div>
+            <div>
+                <div class="text-xs text-amber-400 font-pixel uppercase tracking-widest" id="hero-title">Caballero Novato</div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-slate-300">Nivel <span id="hud-level" class="text-amber-400">1</span></span>
+                    <div class="w-24 sm:w-32 bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                        <div id="hero-hp-bar" class="bg-red-500 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progreso de Enfrentamientos y Equipamiento -->
+        <div class="flex items-center gap-4 text-xs sm:text-sm">
+            <div class="flex flex-col items-center">
+                <span class="text-slate-400 text-xs">Arma Actual</span>
+                <span id="hud-weapon" class="font-bold text-cyan-400">Espada de Hierro</span>
+            </div>
+            <div class="h-8 w-px bg-slate-700"></div>
+            <div class="flex flex-col items-center">
+                <span class="text-slate-400 text-xs">Enemigos Restantes</span>
+                <div class="flex items-center gap-1 text-amber-400 font-pixel text-sm">
+                    <i class="fa-solid fa-skull"></i>
+                    <span id="hud-kills">0</span> / <span id="hud-kills-total">3</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor Principal del Juego -->
+    <main id="game-wrapper" class="relative w-full max-w-4xl flex-1 my-2 flex items-center justify-center overflow-hidden rounded-2xl border-4 border-slate-800 bg-slate-900 cursor-crosshair">
+        <!-- Canvas para renderizar el combate -->
+        <canvas id="gameCanvas" class="w-full h-full block bg-slate-900"></canvas>
+
+        <!-- Overlay Controles en Pantalla Tactil (Mobile) -->
+        <div id="touch-controls" class="absolute bottom-4 left-4 right-4 flex justify-between items-center pointer-events-none md:hidden">
+            <div class="flex gap-2 pointer-events-auto">
+                <button id="btn-left" class="w-14 h-14 bg-slate-800/80 border-2 border-slate-600 rounded-full flex items-center justify-center text-white text-xl active:bg-slate-700">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button id="btn-right" class="w-14 h-14 bg-slate-800/80 border-2 border-slate-600 rounded-full flex items-center justify-center text-white text-xl active:bg-slate-700">
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+            <div class="flex gap-2 pointer-events-auto">
+                <button id="btn-jump" class="w-14 h-14 bg-blue-600/90 border-2 border-blue-400 rounded-full flex items-center justify-center text-white text-xl active:bg-blue-500 shadow-lg">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <button id="btn-attack" class="w-16 h-16 bg-red-600/90 border-2 border-red-400 rounded-full flex items-center justify-center text-white text-2xl active:bg-red-500 shadow-lg">
+                    <i class="fa-solid fa-hand-fist"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Pantalla Modal / Interfaz de Lectoescritura -->
+        <div id="literacy-modal" class="hidden absolute inset-0 modal-bg flex items-center justify-center p-4 z-50 cursor-default">
+            <div class="bg-slate-900 border-4 border-amber-500 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col items-center text-center relative overflow-hidden">
+                <!-- Banner Superior -->
+                <div class="bg-amber-500 text-slate-950 font-pixel py-2 px-6 rounded-full text-xs sm:text-sm uppercase font-bold mb-4 shadow-md">
+                    ¡Desafío de Lectoescritura! (<span id="modal-step">1</span>/<span id="modal-total-steps">5</span>)
+                </div>
+
+                <!-- Indicador de instrucción para el niño -->
+                <p id="modal-instruction" class="text-lg sm:text-xl text-amber-200 font-bold mb-3">
+                    Escribe la palabra representada en la imagen
+                </p>
+
+                <!-- Tarjeta Visual (Imagen/Ilustración) -->
+                <div class="bg-slate-800/90 border-2 border-amber-400/60 rounded-2xl p-4 w-48 h-48 flex items-center justify-center mb-4 shadow-xl relative overflow-hidden">
+                    <div id="modal-image-container" class="w-full h-full flex items-center justify-center">
+                        <!-- SVG detallado generado dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Pista visual de la palabra (Guiones o letras dadas) -->
+                <div id="word-slots-container" class="flex gap-2 mb-4 justify-center flex-wrap">
+                    <!-- Casillas de letras creadas por JS -->
+                </div>
+
+                <!-- Teclado en Pantalla / Pistas disponibles -->
+                <div id="keyboard-container" class="w-full max-w-md grid grid-cols-7 gap-1.5 mb-4">
+                    <!-- Botones de letras generados dinámicamente -->
+                </div>
+
+                <!-- Acciones (Verificar / Borrar) -->
+                <div class="flex gap-3 w-full max-w-xs">
+                    <button id="btn-clear-word" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl btn-retro text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-eraser"></i> Borrar
+                    </button>
+                    <button id="btn-submit-word" class="flex-1 py-3 btn-success-retro text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-check"></i> Comprobar
+                    </button>
+                </div>
+
+                <!-- Mensaje de Feedback -->
+                <div id="modal-feedback" class="mt-3 text-sm font-bold min-h-[24px]"></div>
+            </div>
+        </div>
+
+        <!-- Modal de Recompensa / Subida de Nivel -->
+        <div id="upgrade-modal" class="hidden absolute inset-0 modal-bg flex items-center justify-center p-4 z-50 cursor-default">
+            <div class="bg-slate-900 border-4 border-yellow-400 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl animate-bounce-subtle">
+                <div class="text-4xl text-yellow-400 mb-2"><i class="fa-solid fa-trophy"></i></div>
+                <h2 class="text-2xl font-pixel text-yellow-400 mb-2">¡Nivel Completado!</h2>
+                <p id="upgrade-desc" class="text-slate-300 text-base mb-6">¡Has demostrado un gran conocimiento de las palabras!</p>
+                
+                <div class="bg-slate-800 rounded-xl p-4 border-2 border-slate-700 mb-6 flex items-center justify-around">
+                    <div class="text-center">
+                        <div id="upgrade-item-icon" class="text-4xl text-cyan-400 mb-1"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div id="upgrade-item-name" class="text-sm font-bold text-amber-300">Nueva Armadura</div>
+                    </div>
+                </div>
+
+                <button id="btn-next-level" class="w-full py-4 btn-primary-retro text-white font-pixel text-sm rounded-xl uppercase">
+                    ¡Avanzar al Nivel <span id="next-level-num">2</span>!
+                </button>
+            </div>
+        </div>
+
+        <!-- Pantalla de Inicio / Instrucciones -->
+        <div id="start-screen" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 z-50 text-center cursor-default">
+            <div class="text-5xl text-amber-400 mb-4 animate-bounce-subtle">
+                <i class="fa-solid fa-shield-cat"></i>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-pixel text-amber-400 mb-3 tracking-wide">EL CABALLERO LECTOR</h1>
+            <p class="text-slate-300 text-base sm:text-lg max-w-lg mb-6">
+                Derrota a todos los enemigos de la horda con tu espada uno a uno. ¡Al derrotarlos a todos se abrirá el portal con desafíos de palabras!
+            </p>
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 max-w-md text-left text-xs sm:text-sm text-slate-400 mb-6 space-y-2 shadow-lg">
+                <p><i class="fa-solid fa-mouse text-amber-400 mr-2"></i><strong>Atacar:</strong> Haz <strong class="text-amber-300 underline">CLICK IZQUIERDO</strong> en el área de juego.</p>
+                <p><i class="fa-solid fa-keyboard text-amber-400 mr-2"></i><strong>Saltar:</strong> Presiona <strong class="text-amber-300 underline">BARRA ESPACIADORA [ESPACIO]</strong> o Flecha Arriba.</p>
+                <p><i class="fa-solid fa-arrows-left-right text-amber-400 mr-2"></i><strong>Moverse:</strong> Teclas A/D o Flechas Izquierda/Derecha.</p>
+                <p><i class="fa-solid fa-dragon text-amber-400 mr-2"></i><strong>Objetivo:</strong> Derrota a todos los enemigos del nivel (aparecen uno a uno) para acceder a los ejercicios de lectoescritura.</p>
+            </div>
+            <button id="btn-start-game" class="px-8 py-4 btn-success-retro font-pixel text-white text-base rounded-2xl tracking-wider">
+                ¡EMPEZAR AVENTURA!
+            </button>
+        </div>
+    </main>
+
+    <!-- Instrucciones rápidas en Footer -->
+    <footer class="w-full max-w-4xl text-center text-xs text-slate-500 py-1">
+        Juego Educativo de Lectoescritura para Primero Básico | Lenguaje y Comunicación
+    </footer>
+
+    <script>
+        /* === DEFINICIÓN DE ENEMIGOS Y ESCENARIOS POR NIVEL === */
+        const LEVEL_CONFIG = {
+            1: {
+                name: "Valle Verde",
+                enemyCount: 3,
+                questionsPerLevel: 5,
+                bgSky: "#0f172a",
+                bgMountains: "#1e293b",
+                bgGround: "#15803d",
+                bgGrass: "#22c55e",
+                enemies: [
+                    { type: 'skeleton', name: 'Esqueleto', hp: 30, speed: 1.2, damage: 8, color: '#e2e8f0' },
+                    { type: 'zombie', name: 'Zombi', hp: 45, speed: 0.8, damage: 10, color: '#4d7c0f' }
+                ]
+            },
+            2: {
+                name: "Bosque Encantado",
+                enemyCount: 4,
+                questionsPerLevel: 5,
+                bgSky: "#1e1b4b",
+                bgMountains: "#312e81",
+                bgGround: "#3f6212",
+                bgGrass: "#84cc16",
+                enemies: [
+                    { type: 'ghost', name: 'Fantasma', hp: 40, speed: 1.5, damage: 12, color: '#a5f3fc' },
+                    { type: 'goblin', name: 'Duende', hp: 35, speed: 1.8, damage: 9, color: '#16a34a' }
+                ]
+            },
+            3: {
+                name: "Cueva del Dragón",
+                enemyCount: 5,
+                questionsPerLevel: 6,
+                bgSky: "#450a0a",
+                bgMountains: "#7f1d1d",
+                bgGround: "#44403c",
+                bgGrass: "#ef4444",
+                enemies: [
+                    { type: 'dragon', name: 'Dragón de Fuego', hp: 70, speed: 1.1, damage: 18, color: '#dc2626' },
+                    { type: 'beast', name: 'Bestia Mitológica', hp: 60, speed: 1.4, damage: 15, color: '#d97706' }
+                ]
+            },
+            4: {
+                name: "Castillo Místico",
+                enemyCount: 6,
+                questionsPerLevel: 6,
+                bgSky: "#2e1065",
+                bgMountains: "#581c87",
+                bgGround: "#3b0764",
+                bgGrass: "#c084fc",
+                enemies: [
+                    { type: 'ghost', name: 'Espectro Sombrío', hp: 75, speed: 1.6, damage: 16, color: '#d8b4fe' },
+                    { type: 'dragon', name: 'Dragón de Sombras', hp: 85, speed: 1.3, damage: 20, color: '#a855f7' }
+                ]
+            },
+            5: {
+                name: "Fortaleza del Rey Dragón",
+                enemyCount: 7,
+                questionsPerLevel: 8,
+                bgSky: "#022c22",
+                bgMountains: "#065f46",
+                bgGround: "#064e3b",
+                bgGrass: "#34d399",
+                enemies: [
+                    { type: 'dragon', name: 'Gran Dragón Carmesí', hp: 100, speed: 1.5, damage: 22, color: '#f43f5e' },
+                    { type: 'beast', name: 'Quimera Real', hp: 90, speed: 1.7, damage: 20, color: '#10b981' }
+                ]
+            }
+        };
+
+        /* === SISTEMA DE AUDIO SINTETIZADO (Web Audio API) === */
+        class SoundSystem {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playHit() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playJump() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playCorrect() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(554.37, now + 0.1);
+                osc.frequency.setValueAtTime(659.25, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.4);
+            }
+
+            playWrong() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.setValueAtTime(130, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.3);
+            }
+
+            playUpgrade() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [261.63, 329.63, 392.00, 523.25, 659.25];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.08 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.2);
+                });
+            }
+        }
+
+        const audio = new SoundSystem();
+
+        /* === BANCO DE VOCABULARIO CON MÁS DE 30 PREGUNTAS Y VECTORES SVG DETALLADOS === */
+        const VOCABULARY_DATABASE = {
+            1: [ // Nivel 1: Vocales y sílabas directas simples (M, P, L, S)
+                { 
+                    word: "SOL", type: "complete", hint: "Completa la vocal de la palabra", given: "S _ L", missing: ["O"], options: ["O", "A", "E", "I"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><defs><radialGradient id="sunGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fef08a"/><stop offset="60%" stop-color="#facc15"/><stop offset="100%" stop-color="#eab308"/></radialGradient></defs><circle cx="50" cy="50" r="22" fill="url(#sunGlow)" stroke="#ca8a04" stroke-width="2"/><circle cx="50" cy="50" r="26" fill="none" stroke="#fde047" stroke-width="1.5" stroke-dasharray="4,3"/><path d="M50 8v12M50 80v12M8 50h12M80 50h12M20 20l9 9M71 71l9 9M20 80l9-9M71 29l9-9" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/><circle cx="43" cy="45" r="3" fill="#854d0e"/><circle cx="57" cy="45" r="3" fill="#854d0e"/><path d="M43 56 Q50 63 57 56" stroke="#854d0e" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>` 
+                },
+                { 
+                    word: "MESA", type: "complete", hint: "Escribe la vocal que falta", given: "M _ S A", missing: ["E"], options: ["E", "U", "I", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M10 40 L90 40 L80 52 L20 52 Z" fill="#b45309" stroke="#78350f" stroke-width="2"/><rect x="12" y="38" width="76" height="5" fill="#d97706"/><rect x="22" y="52" width="8" height="35" fill="#78350f" rx="1"/><rect x="70" y="52" width="8" height="35" fill="#78350f" rx="1"/><rect x="32" y="52" width="6" height="28" fill="#451a03" rx="1"/><rect x="62" y="52" width="6" height="28" fill="#451a03" rx="1"/></svg>` 
+                },
+                { 
+                    word: "LUNA", type: "write", hint: "Escribe el nombre de la figura", letters: ["L", "U", "N", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M68 18 A32 32 0 1 1 32 82 A38 38 0 0 0 68 18 Z" fill="#fde047" stroke="#eab308" stroke-width="2"/><circle cx="48" cy="40" r="4" fill="#ca8a04" opacity="0.5"/><circle cx="58" cy="60" r="6" fill="#ca8a04" opacity="0.4"/><polygon points="20,25 23,32 30,32 25,37 27,44 20,40 13,44 15,37 10,32 17,32" fill="#fef08a"/></svg>` 
+                },
+                { 
+                    word: "PAPA", type: "complete", hint: "Completa la vocal final", given: "P A P _", missing: ["A"], options: ["A", "E", "I", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><ellipse cx="50" cy="52" rx="34" ry="25" fill="#d97706" stroke="#92400e" stroke-width="3"/><ellipse cx="48" cy="50" rx="30" ry="21" fill="#f59e0b"/><circle cx="35" cy="44" r="2.5" fill="#78350f"/><circle cx="62" cy="58" r="2" fill="#78350f"/><circle cx="52" cy="42" r="2" fill="#78350f"/></svg>` 
+                },
+                { 
+                    word: "OSO", type: "unscramble", hint: "Ordena las letras para formar la palabra", letters: ["O", "S", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="28" cy="28" r="12" fill="#78350f"/><circle cx="72" cy="28" r="12" fill="#78350f"/><circle cx="50" cy="52" r="32" fill="#92400e"/><ellipse cx="50" cy="58" rx="18" ry="14" fill="#fde047"/><ellipse cx="50" cy="52" rx="6" ry="4" fill="#1e293b"/><circle cx="38" cy="42" r="3" fill="#1e293b"/><circle cx="62" cy="42" r="3" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "PALA", type: "write", hint: "Escribe la palabra con las letras dadas", letters: ["P", "A", "L", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M25 15 L32 22 L70 80 L62 86 Z" fill="#b45309"/><path d="M12 10 Q35 10 45 32 Q20 42 12 10 Z" fill="#94a3b8" stroke="#475569" stroke-width="2"/></svg>` 
+                },
+                { 
+                    word: "ISLA", type: "complete", hint: "Completa la primera vocal", given: "_ S L A", missing: ["I"], options: ["I", "A", "O", "E"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><ellipse cx="50" cy="70" rx="40" ry="15" fill="#fde047"/><path d="M48 70 Q40 40 50 20 Q55 45 52 70" fill="#78350f"/><path d="M50 20 C30 10 20 25 15 30 C30 30 40 25 50 20 Z" fill="#15803d"/><path d="M50 20 C70 10 80 25 85 30 C70 30 60 25 50 20 Z" fill="#22c55e"/></svg>` 
+                }
+            ],
+            2: [ // Nivel 2: Sílabas T, D, N, R, C
+                { 
+                    word: "PATO", type: "complete", hint: "Escribe la vocal faltante", given: "P A T _", missing: ["O"], options: ["O", "A", "E", "U"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M25 65 C25 85 75 85 75 65 C75 50 60 48 50 48 C42 48 35 38 42 25 C48 12 25 12 25 26 C25 35 32 40 30 48 C25 52 25 60 25 65 Z" fill="#facc15" stroke="#ca8a04" stroke-width="2"/><path d="M12 28 C12 22 25 24 28 28 Z" fill="#f97316" stroke="#ea580c" stroke-width="1.5"/><circle cx="30" cy="22" r="3" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "GATO", type: "unscramble", hint: "Ordena las letras para formar el animal", letters: ["G", "A", "T", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M25 35 L20 12 L42 26 Z" fill="#f97316"/><path d="M75 35 L80 12 L58 26 Z" fill="#f97316"/><circle cx="50" cy="52" r="30" fill="#fb923c" stroke="#c2410c" stroke-width="2"/><ellipse cx="38" cy="48" rx="4" ry="6" fill="#fef08a"/><ellipse cx="62" cy="48" rx="4" ry="6" fill="#fef08a"/><polygon points="50,56 45,61 55,61" fill="#f43f5e"/></svg>` 
+                },
+                { 
+                    word: "ROSA", type: "write", hint: "Escribe el nombre de la flor", letters: ["R", "O", "S", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M50 50 L50 92" stroke="#16a34a" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="38" r="22" fill="#f43f5e"/><path d="M38 28 C42 18 58 18 62 28 C68 38 58 48 50 48 C42 48 32 38 38 28 Z" fill="#e11d48"/><circle cx="50" cy="35" r="8" fill="#be123c"/></svg>` 
+                },
+                { 
+                    word: "DADO", type: "complete", hint: "Completa la letra que falta", given: "D A D _", missing: ["O"], options: ["O", "I", "E", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="20" y="20" width="60" height="60" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="4"/><circle cx="36" cy="36" r="5" fill="#ef4444"/><circle cx="64" cy="64" r="5" fill="#ef4444"/><circle cx="50" cy="50" r="5" fill="#ef4444"/><circle cx="64" cy="36" r="5" fill="#ef4444"/><circle cx="36" cy="64" r="5" fill="#ef4444"/></svg>` 
+                },
+                { 
+                    word: "NUBE", type: "unscramble", hint: "Ordena las letras para formar la palabra", letters: ["N", "U", "B", "E"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M25 65 A20 20 0 0 1 35 30 A25 25 0 0 1 70 35 A20 20 0 0 1 80 65 Z" fill="#38bdf8" stroke="#0284c7" stroke-width="3"/></svg>` 
+                },
+                { 
+                    word: "TORO", type: "write", hint: "Escribe el nombre del animal", letters: ["T", "O", "R", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M20 25 C10 10 30 20 32 35 M80 25 C90 10 70 20 68 35" stroke="#e2e8f0" stroke-width="5" fill="none"/><circle cx="50" cy="50" r="28" fill="#78350f"/><ellipse cx="50" cy="58" rx="16" ry="10" fill="#fde047"/><circle cx="40" cy="45" r="3" fill="#ffffff"/><circle cx="60" cy="45" r="3" fill="#ffffff"/></svg>` 
+                },
+                { 
+                    word: "CAMA", type: "complete", hint: "Completa la vocal", given: "C A M _", missing: ["A"], options: ["A", "O", "E", "I"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="15" y="45" width="70" height="25" fill="#b45309" rx="3"/><rect x="20" y="38" width="22" height="12" fill="#f8fafc" rx="3"/><rect x="15" y="52" width="70" height="15" fill="#3b82f6" rx="2"/><rect x="10" y="30" width="8" height="48" fill="#78350f"/><rect x="82" y="40" width="8" height="38" fill="#78350f"/></svg>` 
+                }
+            ],
+            3: [ // Nivel 3: Palabras trisílabas y consonantes trabadas/compuestas
+                { 
+                    word: "PELOTA", type: "write", hint: "Escribe el nombre del objeto", letters: ["P", "E", "L", "O", "T", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="34" fill="#2563eb" stroke="#1d4ed8" stroke-width="2"/><path d="M20 38 A 34 34 0 0 0 80 38 Z" fill="#ef4444"/><path d="M16 50 A 34 34 0 0 0 84 50 Z" fill="#facc15"/><circle cx="50" cy="50" r="34" fill="none" stroke="#1e293b" stroke-width="3"/></svg>` 
+                },
+                { 
+                    word: "MARIPOSA", type: "complete_syllable", hint: "Completa la palabra con la vocal adecuada", given: "M A R I P _ S A", missing: ["O"], options: ["O", "A", "E", "U"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M50 50 C20 10 0 30 20 55 C30 65 45 55 50 50 Z" fill="#ec4899" stroke="#be185d" stroke-width="2"/><path d="M50 50 C80 10 100 30 80 55 C70 65 55 55 50 50 Z" fill="#ec4899" stroke="#be185d" stroke-width="2"/><rect x="47" y="32" width="6" height="42" rx="3" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "ESTRELLA", type: "write", hint: "Ordena las letras para formar la estrella", letters: ["E", "S", "T", "R", "E", "L", "L", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><polygon points="50,10 62,35 90,38 68,57 74,85 50,70 26,85 32,57 10,38 38,35" fill="#fde047" stroke="#ca8a04" stroke-width="3"/><circle cx="42" cy="45" r="3" fill="#854d0e"/><circle cx="58" cy="45" r="3" fill="#854d0e"/><path d="M44 54 Q50 60 56 54" stroke="#854d0e" stroke-width="2" fill="none"/></svg>` 
+                },
+                { 
+                    word: "CORAZON", type: "write", hint: "Escribe el nombre de la figura", letters: ["C", "O", "R", "A", "Z", "O", "N"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M50 88 C20 68 8 50 8 32 C8 18 20 8 34 8 C42 8 48 12 50 18 C52 12 58 8 66 8 C80 8 92 18 92 32 C92 50 80 68 50 88 Z" fill="#ef4444" stroke="#b91c1c" stroke-width="3"/></svg>` 
+                },
+                { 
+                    word: "CAMION", type: "complete", hint: "Completa la vocal faltante", given: "C A M I _ N", missing: ["O"], options: ["O", "E", "A", "U"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="10" y="40" width="45" height="30" fill="#ef4444" rx="3"/><rect x="55" y="48" width="35" height="22" fill="#3b82f6" rx="2"/><circle cx="28" cy="72" r="8" fill="#1e293b"/><circle cx="72" cy="72" r="8" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "ZAPATO", type: "unscramble", hint: "Ordena las letras para formar el objeto", letters: ["Z", "A", "P", "A", "T", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M15 65 Q20 40 45 40 L60 55 L85 55 Q90 68 80 72 L15 72 Z" fill="#881337" stroke="#4c0519" stroke-width="2"/><rect x="15" y="72" width="70" height="6" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "PLTANO", type: "complete", hint: "Completa la palabra", given: "P L A T _ N O", missing: ["A"], options: ["A", "E", "O", "I"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M20 20 C50 20 80 40 75 80 C60 60 30 40 20 20 Z" fill="#facc15" stroke="#ca8a04" stroke-width="2"/></svg>` 
+                }
+            ],
+            4: [ // Nivel 4: Vocabulario variado con combinaciones
+                { 
+                    word: "CABALLO", type: "write", hint: "Escribe el nombre del animal", letters: ["C", "A", "B", "A", "L", "L", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M30 75 Q20 40 40 25 Q55 10 70 20 Q75 35 60 45 Q50 60 55 75 Z" fill="#b45309"/><circle cx="62" cy="28" r="3" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "PERRO", type: "unscramble", hint: "Ordena las letras para formar la palabra", letters: ["P", "E", "R", "R", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="28" fill="#a16207"/><path d="M22 30 C12 10 32 15 30 35 M78 30 C88 10 68 15 70 35" fill="#78350f"/><ellipse cx="50" cy="58" rx="12" ry="8" fill="#fde047"/><circle cx="50" cy="54" r="4" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "MANZANA", type: "write", hint: "Escribe la fruta", letters: ["M", "A", "N", "Z", "A", "N", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="42" cy="52" r="24" fill="#ef4444"/><circle cx="58" cy="52" r="24" fill="#dc2626"/><path d="M50 30 Q55 18 52 10" stroke="#78350f" stroke-width="4" fill="none"/><path d="M52 18 Q68 15 70 25 Z" fill="#22c55e"/></svg>` 
+                },
+                { 
+                    word: "CONEJO", type: "complete", hint: "Completa la vocal", given: "C O N _ J O", missing: ["E"], options: ["E", "A", "I", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="35" y="8" width="10" height="35" rx="5" fill="#f8fafc"/><rect x="55" y="8" width="10" height="35" rx="5" fill="#f8fafc"/><circle cx="50" cy="55" r="25" fill="#f1f5f9"/><circle cx="42" cy="50" r="3" fill="#1e293b"/><circle cx="58" cy="50" r="3" fill="#1e293b"/><polygon points="50,56 46,60 54,60" fill="#f43f5e"/></svg>` 
+                },
+                { 
+                    word: "FLOR", type: "write", hint: "Escribe la palabra representada", letters: ["F", "L", "O", "R"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M50 50 L50 90" stroke="#16a34a" stroke-width="5"/><circle cx="50" cy="32" r="10" fill="#fecdd3"/><circle cx="32" cy="50" r="10" fill="#fecdd3"/><circle cx="68" cy="50" r="10" fill="#fecdd3"/><circle cx="50" cy="68" r="10" fill="#fecdd3"/><circle cx="50" cy="50" r="12" fill="#facc15"/></svg>` 
+                },
+                { 
+                    word: "TIGRE", type: "unscramble", hint: "Ordena las letras para formar el animal", letters: ["T", "I", "G", "R", "E"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="28" fill="#f97316"/><path d="M35 30 L40 42 M65 30 L60 42 M50 25 L50 38" stroke="#1e293b" stroke-width="3"/><circle cx="40" cy="48" r="3" fill="#1e293b"/><circle cx="60" cy="48" r="3" fill="#1e293b"/></svg>` 
+                }
+            ],
+            5: [ // Nivel 5: Desafío maestro con palabras completas
+                { 
+                    word: "SERPIENTE", type: "write", hint: "Escribe el nombre del animal", letters: ["S", "E", "R", "P", "I", "E", "N", "T", "E"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M20 75 Q40 50 60 75 T90 50 Q75 35 60 50" stroke="#22c55e" stroke-width="12" fill="none" stroke-linecap="round"/><circle cx="85" cy="48" r="2" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "ELEFANTE", type: "complete", hint: "Completa la vocal de la palabra", given: "E L _ F A N T E", missing: ["E"], options: ["E", "A", "I", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="48" r="28" fill="#94a3b8"/><path d="M50 55 Q50 85 35 75 Q40 60 48 58" fill="#64748b"/><circle cx="60" cy="42" r="3" fill="#1e293b"/></svg>` 
+                },
+                { 
+                    word: "PENGUINO", type: "unscramble", hint: "Ordena las letras para formar el ave", letters: ["P", "E", "N", "G", "U", "I", "N", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><ellipse cx="50" cy="52" rx="22" ry="32" fill="#0f172a"/><ellipse cx="50" cy="56" rx="14" ry="22" fill="#f8fafc"/><polygon points="50,45 42,50 50,52" fill="#f97316"/><circle cx="43" cy="40" r="2.5" fill="#ffffff"/><circle cx="57" cy="40" r="2.5" fill="#ffffff"/></svg>` 
+                },
+                { 
+                    word: "TESORO", type: "write", hint: "Escribe el nombre del objeto", letters: ["T", "E", "S", "O", "R", "O"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="20" y="45" width="60" height="32" rx="4" fill="#b45309" stroke="#78350f" stroke-width="3"/><path d="M18 45 Q50 25 82 45 Z" fill="#d97706" stroke="#78350f" stroke-width="3"/><rect x="46" y="48" width="8" height="12" fill="#facc15"/></svg>` 
+                },
+                { 
+                    word: "ARBOL", type: "complete", hint: "Escribe la primera vocal", given: "_ R B O L", missing: ["A"], options: ["A", "E", "O", "I"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="44" y="50" width="12" height="35" fill="#78350f"/><circle cx="50" cy="38" r="26" fill="#15803d"/><circle cx="38" cy="42" r="18" fill="#22c55e"/><circle cx="62" cy="42" r="18" fill="#22c55e"/></svg>` 
+                },
+                { 
+                    word: "PIRATA", type: "write", hint: "Escribe el personaje", letters: ["P", "I", "R", "A", "T", "A"],
+                    svg: `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="28" fill="#fde047"/><path d="M22 38 Q50 20 78 38 Z" fill="#ef4444"/><circle cx="40" cy="48" r="6" fill="#1e293b"/><line x1="25" y1="42" x2="60" y2="52" stroke="#1e293b" stroke-width="2"/></svg>` 
+                }
+            ]
+        };
+
+        /* === CONFIGURACIÓN DE EQUIPAMIENTO Y PROGRESIÓN === */
+        const WEAPONS = [
+            { name: "Espada de Hierro", damage: 25, color: "#94a3b8" },
+            { name: "Espada de Fuego", damage: 40, color: "#f97316" },
+            { name: "Hacha de Combate", damage: 60, color: "#eab308" },
+            { name: "Espada de Diamante", damage: 85, color: "#06b6d4" },
+            { name: "Espada Legendaria", damage: 120, color: "#e11d48" }
+        ];
+
+        const ARMORS = [
+            { name: "Armadura de Cuero", hp: 100, color: "#b45309" },
+            { name: "Armadura de Bronce", hp: 130, color: "#d97706" },
+            { name: "Armadura de Plata", hp: 170, color: "#cbd5e1" },
+            { name: "Armadura de Oro", hp: 220, color: "#facc15" },
+            { name: "Armadura Mística", hp: 300, color: "#a855f7" }
+        ];
+
+        /* === ESTADO DEL JUEGO Y CANVAS ENGINE === */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let gameState = {
+            level: 1,
+            enemiesDefeatedInLevel: 0,
+            activeEnemy: null,
+            hero: {
+                x: 80,
+                y: 0,
+                width: 45,
+                height: 60,
+                vx: 0,
+                vy: 0,
+                speed: 4,
+                isGrounded: true,
+                jumpForce: 12,
+                gravity: 0.6,
+                isAttacking: false,
+                attackFrame: 0,
+                facingRight: true,
+                maxHp: 100,
+                hp: 100,
+                weaponIdx: 0,
+                armorIdx: 0
+            },
+            particles: [],
+            isPaused: false,
+            currentQuestions: [],
+            questionIdx: 0,
+            currentInput: []
+        };
+
+        function updateHUD() {
+            const hero = gameState.hero;
+            const currentConfig = LEVEL_CONFIG[Math.min(gameState.level, 5)];
+            const currentArmor = ARMORS[hero.armorIdx];
+            const currentWeapon = WEAPONS[hero.weaponIdx];
+
+            document.getElementById('hud-level').textContent = gameState.level;
+            
+            const titles = ["Caballero Novato", "Escudero Real", "Guerrero de las Letras", "Campeón Supremo", "Señor Leyenda"];
+            const titleIdx = Math.min(gameState.level - 1, titles.length - 1);
+            document.getElementById('hero-title').textContent = titles[titleIdx];
+
+            const hpPercent = Math.max(0, Math.min(100, (hero.hp / currentArmor.hp) * 100));
+            document.getElementById('hero-hp-bar').style.width = `${hpPercent}%`;
+
+            document.getElementById('hud-weapon').textContent = currentWeapon.name;
+            document.getElementById('hud-kills').textContent = gameState.enemiesDefeatedInLevel;
+            document.getElementById('hud-kills-total').textContent = currentConfig.enemyCount;
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-wrapper');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            if (gameState.hero.isGrounded) {
+                gameState.hero.y = canvas.height - 110;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        class Enemy {
+            constructor(x, enemyData) {
+                this.x = x;
+                this.y = canvas.height - 110;
+                this.width = 45;
+                this.height = 55;
+                this.type = enemyData.type;
+                this.name = enemyData.name;
+                this.maxHp = enemyData.hp;
+                this.hp = this.maxHp;
+                this.speed = enemyData.speed;
+                this.damage = enemyData.damage;
+                this.color = enemyData.color;
+                this.isHit = 0;
+                this.floatOffset = 0;
+            }
+
+            update(hero) {
+                if (this.hp <= 0) return;
+
+                if (this.type === 'ghost') {
+                    this.floatOffset = Math.sin(Date.now() / 200) * 8;
+                }
+
+                const dx = hero.x - this.x;
+                if (Math.abs(dx) > 35) {
+                    this.x += Math.sign(dx) * this.speed;
+                } else {
+                    if (Math.random() < 0.02) {
+                        hero.hp = Math.max(0, hero.hp - this.damage);
+                        audio.playHit();
+                        createParticles(hero.x + 20, hero.y + 30, '#ef4444', 6);
+                        updateHUD();
+                        if (hero.hp <= 0) {
+                            respawnHero();
+                        }
+                    }
+                }
+
+                if (this.isHit > 0) this.isHit--;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y + this.floatOffset);
+
+                ctx.fillStyle = this.isHit > 0 ? '#ffffff' : this.color;
+
+                if (this.type === 'skeleton') {
+                    ctx.fillRect(10, 10, 25, 38);
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(15, 16, 5, 5);
+                    ctx.fillRect(25, 16, 5, 5);
+                } else if (this.type === 'zombie') {
+                    ctx.fillRect(8, 10, 28, 40);
+                    ctx.fillStyle = '#15803d';
+                    ctx.fillRect(-5, 20, 15, 8);
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(14, 18, 5, 5);
+                } else if (this.type === 'ghost') {
+                    ctx.beginPath();
+                    ctx.arc(22, 20, 18, Math.PI, 0, false);
+                    ctx.lineTo(40, 48);
+                    ctx.lineTo(30, 40);
+                    ctx.lineTo(20, 48);
+                    ctx.lineTo(10, 40);
+                    ctx.lineTo(4, 48);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(16, 18, 3, 0, Math.PI * 2);
+                    ctx.arc(28, 18, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.type === 'goblin') {
+                    ctx.fillRect(12, 18, 20, 30);
+                    ctx.beginPath();
+                    ctx.moveTo(12, 20); ctx.lineTo(2, 12); ctx.lineTo(12, 28);
+                    ctx.moveTo(32, 20); ctx.lineTo(42, 12); ctx.lineTo(32, 28);
+                    ctx.fill();
+                } else if (this.type === 'dragon') {
+                    ctx.fillRect(5, 12, 35, 35);
+                    ctx.fillStyle = '#991b1b';
+                    ctx.beginPath();
+                    ctx.moveTo(5, 15); ctx.lineTo(-12, 0); ctx.lineTo(5, 30);
+                    ctx.moveTo(40, 15); ctx.lineTo(57, 0); ctx.lineTo(40, 30);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(6, 12, 32, 36);
+                }
+
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, -12, 45, 6);
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(0, -12, (this.hp / this.maxHp) * 45, 6);
+
+                ctx.restore();
+            }
+        }
+
+        function respawnHero() {
+            gameState.hero.hp = ARMORS[gameState.hero.armorIdx].hp;
+            gameState.hero.x = 80;
+            updateHUD();
+        }
+
+        function createParticles(x, y, color, count = 8) {
+            for (let i = 0; i < count; i++) {
+                gameState.particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    life: 20,
+                    color
+                });
+            }
+        }
+
+        /* === CONTROLES DE NAVEGACIÓN === */
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                e.preventDefault();
+                performJump();
+            }
+        });
+        window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        const gameWrapper = document.getElementById('game-wrapper');
+        gameWrapper.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button') || e.target.closest('#literacy-modal') || e.target.closest('#upgrade-modal')) return;
+            performAttack();
+        });
+
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnJump = document.getElementById('btn-jump');
+        const btnAttack = document.getElementById('btn-attack');
+
+        btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowLeft'] = true; });
+        btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowLeft'] = false; });
+        btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowRight'] = true; });
+        btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowRight'] = false; });
+        btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); performJump(); });
+        btnAttack.addEventListener('touchstart', (e) => { e.preventDefault(); performAttack(); });
+
+        function performJump() {
+            const hero = gameState.hero;
+            if (gameState.isPaused) return;
+            if (hero.isGrounded) {
+                hero.vy = -hero.jumpForce;
+                hero.isGrounded = false;
+                audio.playJump();
+            }
+        }
+
+        function performAttack() {
+            const hero = gameState.hero;
+            if (hero.isAttacking || gameState.isPaused) return;
+
+            hero.isAttacking = true;
+            hero.attackFrame = 10;
+            audio.playHit();
+
+            const weaponDamage = WEAPONS[hero.weaponIdx].damage;
+            const enemy = gameState.activeEnemy;
+
+            if (enemy && enemy.hp > 0) {
+                const attackRange = hero.facingRight ? 
+                    (enemy.x > hero.x && enemy.x < hero.x + hero.width + 55) :
+                    (enemy.x < hero.x && enemy.x > hero.x - 55);
+
+                if (attackRange && Math.abs((enemy.y) - hero.y) < 60) {
+                    enemy.hp -= weaponDamage;
+                    enemy.isHit = 8;
+                    createParticles(enemy.x + 20, enemy.y + 25, '#f59e0b', 8);
+
+                    if (enemy.hp <= 0) {
+                        gameState.enemiesDefeatedInLevel++;
+                        gameState.activeEnemy = null;
+                        updateHUD();
+
+                        const currentConfig = LEVEL_CONFIG[Math.min(gameState.level, 5)];
+                        if (gameState.enemiesDefeatedInLevel >= currentConfig.enemyCount) {
+                            gameState.isPaused = true;
+                            setTimeout(openLiteracyModal, 600);
+                        }
+                    }
+                }
+            }
+        }
+
+        function spawnNextEnemy() {
+            const currentConfig = LEVEL_CONFIG[Math.min(gameState.level, 5)];
+            if (!gameState.activeEnemy && gameState.enemiesDefeatedInLevel < currentConfig.enemyCount) {
+                const enemyTypeData = currentConfig.enemies[Math.floor(Math.random() * currentConfig.enemies.length)];
+                const spawnX = canvas.width - 60;
+                gameState.activeEnemy = new Enemy(spawnX, enemyTypeData);
+            }
+        }
+
+        function updateGame() {
+            if (gameState.isPaused) return;
+
+            const hero = gameState.hero;
+
+            if (keys['ArrowLeft'] || keys['KeyA']) {
+                hero.x = Math.max(10, hero.x - hero.speed);
+                hero.facingRight = false;
+            }
+            if (keys['ArrowRight'] || keys['KeyD']) {
+                hero.x = Math.min(canvas.width - hero.width - 10, hero.x + hero.speed);
+                hero.facingRight = true;
+            }
+
+            hero.y += hero.vy;
+            const groundY = canvas.height - 110;
+            if (hero.y < groundY) {
+                hero.vy += hero.gravity;
+                hero.isGrounded = false;
+            } else {
+                hero.y = groundY;
+                hero.vy = 0;
+                hero.isGrounded = true;
+            }
+
+            if (hero.isAttacking) {
+                hero.attackFrame--;
+                if (hero.attackFrame <= 0) {
+                    hero.isAttacking = false;
+                }
+            }
+
+            spawnNextEnemy();
+            if (gameState.activeEnemy) {
+                gameState.activeEnemy.update(hero);
+            }
+
+            gameState.particles.forEach((p) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+            });
+            gameState.particles = gameState.particles.filter(p => p.life > 0);
+        }
+
+        function renderGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawBackground();
+            drawHero();
+
+            if (gameState.activeEnemy && gameState.activeEnemy.hp > 0) {
+                gameState.activeEnemy.draw();
+            }
+
+            gameState.particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+        }
+
+        function gameLoop() {
+            updateGame();
+            renderGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawBackground() {
+            const configKey = Math.min(gameState.level, 5);
+            const config = LEVEL_CONFIG[configKey];
+
+            ctx.fillStyle = config.bgSky;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = config.bgMountains;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - 50);
+            ctx.lineTo(120, canvas.height - 180);
+            ctx.lineTo(280, canvas.height - 50);
+            ctx.lineTo(450, canvas.height - 220);
+            ctx.lineTo(canvas.width, canvas.height - 50);
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.fill();
+
+            ctx.fillStyle = config.bgGround;
+            ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+            ctx.fillStyle = config.bgGrass;
+            ctx.fillRect(0, canvas.height - 55, canvas.width, 5);
+        }
+
+        function drawHero() {
+            const hero = gameState.hero;
+            const armorColor = ARMORS[hero.armorIdx].color;
+            const weaponColor = WEAPONS[hero.weaponIdx].color;
+
+            ctx.save();
+            ctx.translate(hero.x, hero.y);
+
+            if (!hero.facingRight) {
+                ctx.scale(-1, 1);
+                ctx.translate(-hero.width, 0);
+            }
+
+            ctx.fillStyle = armorColor;
+            ctx.fillRect(10, 15, 25, 35);
+
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(8, 0, 28, 20);
+            ctx.fillStyle = '#facc15';
+            ctx.fillRect(18, 8, 14, 4);
+
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(2, 18, 10, 28);
+
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(12, 50, 8, 12);
+            ctx.fillRect(24, 50, 8, 12);
+
+            ctx.fillStyle = weaponColor;
+            if (hero.isAttacking) {
+                ctx.fillRect(32, 15, 35, 8);
+                ctx.fillRect(32, 10, 6, 18);
+            } else {
+                ctx.fillRect(30, 15, 8, 30);
+                ctx.fillRect(25, 25, 18, 5);
+            }
+
+            ctx.restore();
+        }
+
+        /* === MÓDULO DE LECTOESCRITURA Y PREGUNTAS === */
+        function openLiteracyModal() {
+            const modal = document.getElementById('literacy-modal');
+            modal.classList.remove('hidden');
+
+            const currentConfig = LEVEL_CONFIG[Math.min(gameState.level, 5)];
+            const levelQuestions = VOCABULARY_DATABASE[Math.min(gameState.level, 5)];
+            const questionsNeeded = currentConfig.questionsPerLevel;
+
+            gameState.currentQuestions = [...levelQuestions].sort(() => 0.5 - Math.random()).slice(0, questionsNeeded);
+            gameState.questionIdx = 0;
+
+            document.getElementById('modal-total-steps').textContent = questionsNeeded;
+
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const q = gameState.currentQuestions[gameState.questionIdx];
+            gameState.currentInput = [];
+
+            document.getElementById('modal-step').textContent = gameState.questionIdx + 1;
+            document.getElementById('modal-instruction').textContent = q.hint;
+            document.getElementById('modal-image-container').innerHTML = q.svg;
+            document.getElementById('modal-feedback').textContent = '';
+
+            renderWordSlots(q);
+            renderKeyboard(q);
+        }
+
+        function renderWordSlots(q) {
+            const container = document.getElementById('word-slots-container');
+            container.innerHTML = '';
+
+            if (q.type === 'complete' || q.type === 'complete_syllable') {
+                const parts = q.given.split(' ');
+                parts.forEach((char) => {
+                    const slot = document.createElement('div');
+                    slot.className = 'w-10 h-12 sm:w-12 sm:h-14 bg-slate-800 border-2 border-amber-400 rounded-lg flex items-center justify-center font-pixel text-lg sm:text-2xl text-amber-300';
+                    slot.textContent = char === '_' ? (gameState.currentInput[0] || '_') : char;
+                    container.appendChild(slot);
+                });
+            } else {
+                const targetLength = q.word.length;
+                for (let i = 0; i < targetLength; i++) {
+                    const slot = document.createElement('div');
+                    slot.className = 'w-10 h-12 sm:w-12 sm:h-14 bg-slate-800 border-2 border-amber-400 rounded-lg flex items-center justify-center font-pixel text-lg sm:text-2xl text-amber-300';
+                    slot.textContent = gameState.currentInput[i] || '';
+                    container.appendChild(slot);
+                }
+            }
+        }
+
+        function renderKeyboard(q) {
+            const container = document.getElementById('keyboard-container');
+            container.innerHTML = '';
+
+            let availableLetters = [];
+            if (q.options) {
+                availableLetters = q.options;
+            } else if (q.letters) {
+                availableLetters = [...q.letters].sort(() => 0.5 - Math.random());
+            } else {
+                availableLetters = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".split('');
+            }
+
+            availableLetters.forEach(letter => {
+                const btn = document.createElement('button');
+                btn.className = 'key-btn h-12 font-pixel text-amber-300';
+                btn.textContent = letter;
+                btn.onclick = () => addLetter(letter, q);
+                container.appendChild(btn);
+            });
+        }
+
+        function addLetter(letter, q) {
+            if (q.type === 'complete' || q.type === 'complete_syllable') {
+                gameState.currentInput = [letter];
+            } else {
+                if (gameState.currentInput.length < q.word.length) {
+                    gameState.currentInput.push(letter);
+                }
+            }
+            renderWordSlots(q);
+        }
+
+        document.getElementById('btn-clear-word').onclick = () => {
+            gameState.currentInput = [];
+            const q = gameState.currentQuestions[gameState.questionIdx];
+            renderWordSlots(q);
+        };
+
+        document.getElementById('btn-submit-word').onclick = () => {
+            const q = gameState.currentQuestions[gameState.questionIdx];
+            let userWord = "";
+
+            if (q.type === 'complete' || q.type === 'complete_syllable') {
+                userWord = gameState.currentInput[0] || "";
+                const isCorrect = q.missing.includes(userWord);
+                evaluateAnswer(isCorrect, q.word);
+            } else {
+                userWord = gameState.currentInput.join('');
+                const isCorrect = userWord === q.word;
+                evaluateAnswer(isCorrect, q.word);
+            }
+        };
+
+        function evaluateAnswer(isCorrect, correctWord) {
+            const feedback = document.getElementById('modal-feedback');
+            if (isCorrect) {
+                audio.playCorrect();
+                feedback.className = "mt-3 text-sm font-bold text-green-400 font-pixel";
+                feedback.textContent = "¡EXCELENTE! ¡PALABRA CORRECTA!";
+
+                setTimeout(() => {
+                    gameState.questionIdx++;
+                    if (gameState.questionIdx >= gameState.currentQuestions.length) {
+                        document.getElementById('literacy-modal').classList.add('hidden');
+                        triggerLevelUp();
+                    } else {
+                        loadQuestion();
+                    }
+                }, 1200);
+            } else {
+                audio.playWrong();
+                feedback.className = "mt-3 text-sm font-bold text-red-400 font-pixel";
+                feedback.textContent = "Inténtalo de nuevo. ¡Tú puedes!";
+            }
+        }
+
+        function triggerLevelUp() {
+            audio.playUpgrade();
+            gameState.level++;
+            gameState.enemiesDefeatedInLevel = 0;
+            gameState.activeEnemy = null;
+
+            if (gameState.hero.weaponIdx < WEAPONS.length - 1) {
+                gameState.hero.weaponIdx++;
+            }
+            if (gameState.hero.armorIdx < ARMORS.length - 1) {
+                gameState.hero.armorIdx++;
+            }
+
+            gameState.hero.hp = ARMORS[gameState.hero.armorIdx].hp;
+            updateHUD();
+
+            const upgradeModal = document.getElementById('upgrade-modal');
+            document.getElementById('next-level-num').textContent = gameState.level;
+            document.getElementById('upgrade-item-name').textContent = `${WEAPONS[gameState.hero.weaponIdx].name} & ${ARMORS[gameState.hero.armorIdx].name}`;
+            upgradeModal.classList.remove('hidden');
+        }
+
+        document.getElementById('btn-next-level').onclick = () => {
+            document.getElementById('upgrade-modal').classList.add('hidden');
+            gameState.isPaused = false;
+        };
+
+        document.getElementById('btn-start-game').onclick = () => {
+            audio.init();
+            document.getElementById('start-screen').classList.add('hidden');
+            resizeCanvas();
+            updateHUD();
+            gameLoop();
+        };
+
+        window.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('literacy-modal');
+            if (!modal.classList.contains('hidden')) {
+                const key = e.key.toUpperCase();
+                if (/^[A-ZÑ]$/.test(key)) {
+                    const q = gameState.currentQuestions[gameState.questionIdx];
+                    addLetter(key, q);
+                } else if (e.key === 'Backspace') {
+                    document.getElementById('btn-clear-word').click();
+                } else if (e.key === 'Enter') {
+                    document.getElementById('btn-submit-word').click();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
